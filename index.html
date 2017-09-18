@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+	<head>
+		<meta charset="utf-8">
+		<meta http-equiv="X-UA-Compatible" content="IE=edge">
+
+		<link href="https://fonts.googleapis.com/css?family=Asap+Condensed" rel="stylesheet">
+		<link href="https://fonts.googleapis.com/css?family=Roboto" rel="stylesheet">
+		
+		<!-- Styling -->
+		<link href="style.css" rel="stylesheet">
+		
+		<script src="https://d3js.org/d3.v4.min.js"></script>
+		<script src="loom.js"></script>
+		<script src="data_loom.js"></script>
+	</head>
+	<body>
+		<div id="chart"></div>
+		
+		<!-- Based on Nadieh Bremer LotR words graph 
+		http://bl.ocks.org/nbremer/6599644129c034d0cb17fcdc452c310b -->
+		<script>
+			//Wraps SVG text*/
+			function wrap(text) {
+				text.each(function() {
+					var text = d3.select(this),
+					words = text.text().split(",").reverse(),
+					word,
+					line = [],
+					lineNumber = 0,
+					lineHeight = 1.2, // ems
+					y = parseFloat(text.attr("y")),
+					x = parseFloat(text.attr("x")),
+					dy = parseFloat(text.attr("dy")),
+					tspan = text.text(null).append("tspan").attr("x", x).attr("y", y).attr("dy", dy + "em");
+
+					while (word = words.pop()) {
+						line.push(word);
+						line.pop();
+						tspan.text(line.join(" "));
+						line = [word];
+						tspan = text.append("tspan").attr("x", x).attr("y", y).attr("dy", ++lineNumber * lineHeight + dy + "em").text(word);
+					}
+				});
+			}//wrap
+
+			////////////////////////////////////////////////////////////
+			//////////////////// Training notes ///////////////////////
+			////////////////////////////////////////////////////////////
+	
+			var trainingNotes = [];
+			trainingNotes["BodyPump"] = "BodyPump, Bodypump45, BodyPump + MyFit abs, Bodypump + Stretching";
+			trainingNotes["BodyAttack"] = "BodyAttack, BodyAttack45, BodyAttack + MyFit abs";
+			trainingNotes["MyFit abs"] = "MyFit abs, MyFit abs + Stretching";
+			trainingNotes["Kõht selg tuhar"] = "Kõht selg tuhar, Kõht selg tuhar45";
+			trainingNotes["BodyBalance"] = "BodyBalance, Õnnevalem BodyBalance";
+			trainingNotes["Ratas"] = "Interval, Interval + Fit, Maraton, Uphill45";
+			trainingNotes["Tants"] = "BodyJam, Dance, DanceFusion, StripDance, Zumba, Zumba45";
+			trainingNotes["Body & Mind"] = "bodyART, Stretching, YOGAFUNC";
+			trainingNotes["Muu"] = "BodyCombat, BodyVive, Bosu, deepWORK, GRIT Strength, Nike Training Club, Step, ...";
+
+			////////////////////////////////////////////////////////////
+			////////////////////// Create SVG //////////////////////////
+			////////////////////////////////////////////////////////////
+
+			var margin = {left:120, top:50, right:120, bottom:50},
+				width = 700,
+				height = 600,
+				innerRadius = 244,
+				outerRadius = innerRadius * 1.05;
+						
+			var svg = d3.select("#chart").append("svg")
+				.attr("width", width + margin.left + margin.right)
+				.attr("height", height + margin.top + margin.bottom);
+
+			////////////////////////////////////////////////////////////
+			/////////////////// Set-up Loom parameters /////////////////
+			////////////////////////////////////////////////////////////
+				
+			//Some default parameters
+			var pullOutSize = 20 + 30/135 * innerRadius;
+			var numFormat = d3.format(",.0f");
+			var defaultOpacity = 0.85,
+				fadeOpacity = 0.075;
+			
+			//Find the total number of trainings per trainer
+			var dataChar = d3.nest()
+				.key(function(d) { return d.treener; })
+				.rollup(function(leaves) { return d3.sum(leaves, function(d) { return d.arv; }); })
+				.entries(dataset)
+				.sort(function(a, b){ return d3.descending(a.value, b.value); });
+		
+			//Manually sorted the trainers based on the total number of workouts
+			var characterOrder = ["Lene Vardja", "Merike Sula", "Inga Neissaar", "Maigi Varusk", "Kristi Möldri", "Kirsti Kuhi", "Egle Villik"];
+			function sortCharacter(a, b) { return characterOrder.indexOf(a) - characterOrder.indexOf(b); }
+			
+			//Initiate the loom function with all the options
+			var loom = d3.loom()
+			    .padAngle(0.05)
+				.sortSubgroups(sortCharacter)
+				.heightInner(20)
+				.emptyPerc(0.2)
+				.widthInner(35)
+				.value(function(d) { return d.arv; })
+				.inner(function(d) { return d.treener; })
+				.outer(function(d) { return d.nimi; })
+
+			//Initiate the inner string function that belongs to the loom
+			var string = d3.string()
+				.radius(innerRadius)
+				.pullout(pullOutSize);
+
+			//Initiate an arc drawing function that is also needed
+			var arc = d3.arc()
+				.innerRadius(innerRadius*1.01)
+				.outerRadius(outerRadius);
+
+			//Setting color scheme					
+			var color = d3.scaleOrdinal(d3.schemeCategory20c);
+				
+
+			////////////////////////////////////////////////////////////
+			/////////////////////// Data ///////////////////////////////
+			////////////////////////////////////////////////////////////
+				
+			//Create a group that already holds the data
+			var g = svg.append("g")
+			    .attr("transform", "translate(" + (width/2 + margin.left) + "," + (height/2 + margin.top) + ")")
+				.datum(loom(dataset));
+				
+			////////////////////////////////////////////////////////////
+			///////////////////// Set-up title /////////////////////////
+			////////////////////////////////////////////////////////////
+
+			var titles = g.append("g")
+				.attr("class", "texts")
+				.style("opacity", 0);
+		
+			titles.append("text")
+				.attr("class", "name-title")
+				.attr("x", 0)
+				.attr("y", -innerRadius*5/6);
+		
+			titles.append("text")
+				.attr("class", "value-title")
+				.attr("x", 0)
+				.attr("y", -innerRadius*5/6 + 25);	
+			
+			//Set-up notes	
+			var notes = g.append("g")
+				.attr("class", "notes-text")
+				.style("opacity", 0);
+				
+			notes.append("text")
+				.attr("class", "training-note")
+				.attr("x", 0)
+				.attr("y", innerRadius/3)
+				.attr("dy", "0.35em");
+								
+			////////////////////////////////////////////////////////////
+			////////////////////// Draw outer arcs /////////////////////
+			////////////////////////////////////////////////////////////
+
+			var arcGroup = g.append("g").attr("class", "arc-outer-wrapper");
+
+			//Create a group per outer arc, which will contain the arc path + the training name & number of trainings
+			var arcs = arcGroup.selectAll(".arc-wrapper")
+				.data(function(s) { return s.groups; })
+				.enter().append("g")
+				.attr("class", "arc-wrapper")
+				.each(function(d) { d.pullOutSize = (pullOutSize * ( d.startAngle > Math.PI + 1e-2 ? -1 : 1)) })
+				.on("mouseover", function(d) {
+			
+					//Hide all other arcs	
+					d3.selectAll(".arc-wrapper")
+						.transition()
+						.style("opacity", function(s) { return s.outername === d.outername ? 1 : 0.5; });
+			
+					//Hide all other strings
+					d3.selectAll(".string")
+						.transition()
+						.style("opacity", function(s) { return s.outer.outername === d.outername ? 1 : fadeOpacity; });
+				
+					//Find the data for the strings of the hovered over location
+					var trainingData = loom(dataset).filter(function(s) { return s.outer.outername === d.outername; });
+					
+					//Hide the trainers who haven't given that training
+					d3.selectAll(".inner-label")
+						.transition()
+						.style("opacity", function(s) {
+							//Find out how many times the trainer have given that training
+							var char = trainingData.filter(function(c) { return c.outer.innername === s.name; });
+							return char.length === 0 ? 0.1 : 1;
+						});
+					
+					d3.selectAll(".notes-text")
+						.transition()
+						.style("opacity", 1);	
+				
+					//Show the training note
+					d3.selectAll(".training-note")
+						.text(trainingNotes[d.outername])
+						.call(wrap);
+					})
+				.on("mouseout", function(d) {
+			
+					//Show all arc labels
+					d3.selectAll(".arc-wrapper")
+						.transition()
+						.style("opacity", 1);
+									
+					//Show all strings again
+					d3.selectAll(".string")
+						.transition()
+						.style("opacity", defaultOpacity);
+				
+					//Show all trainers again
+					d3.selectAll(".inner-label")
+						.transition()
+						.style("opacity", 1);
+						
+					// Hide notes
+					d3.selectAll(".notes-text")
+						.transition()
+						.style("opacity", 0);
+				});
+
+				//Create the actual arc paths
+				var outerArcs = arcs.append("path")
+					.attr("class", "arc")
+					.style("fill", function(d) { return color(d.outername); })
+					.attr("d", arc)
+					.attr("transform", function(d, i) { 
+						return "translate(" + d.pullOutSize + ',' + 0 + ")"; //Pull the two slices apart
+					});
+						
+				////////////////////////////////////////////////////////////
+				//////////////////// Draw outer labels /////////////////////
+				////////////////////////////////////////////////////////////
+
+				//The text needs to be rotated with the offset in the clockwise direction
+				var outerLabels = arcs.append("g")
+					.each(function(d) { d.angle = ((d.startAngle + d.endAngle) / 2); })
+					.attr("class", "outer-labels")
+					.attr("text-anchor", function(d) { return d.angle > Math.PI ? "end" : null; })
+					.attr("transform", function(d,i) { 
+						var c = arc.centroid(d);
+						return "translate(" + (c[0] + d.pullOutSize) + "," + c[1] + ")"
+						+ "rotate(" + (d.angle * 180 / Math.PI - 90) + ")"
+						+ "translate(" + 26 + ",0)"
+						+ (d.angle > Math.PI ? "rotate(180)" : "")
+					})
+					
+				//The outer name
+				outerLabels.append("text")
+					.attr("class", "outer-label")
+					.attr("dy", ".35em")
+					.text(function(d,i){ return d.outername; });
+					
+				//The value below it
+				outerLabels.append("text")
+					.attr("class", "outer-label-value")
+					.attr("dy", "1.5em")
+					.text(function(d,i){ return numFormat(d.value) + " trenni"; });
+
+				////////////////////////////////////////////////////////////
+				//////////////////// Draw inner strings ////////////////////
+				////////////////////////////////////////////////////////////
+				
+				var stringGroup = g.append("g").attr("class", "string-wrapper");
+
+				//Draw the paths of the inner strings
+				var strings = stringGroup.selectAll("path")
+					.data(function(strings) { return strings; })
+					.enter().append("path")
+					.attr("class", "string")
+					.style("fill", function(d) { return d3.rgb( color(d.outer.outername) ).brighter(0.2) ; })
+					.style("opacity", 0.85)
+					.attr("d", string);
+					
+				////////////////////////////////////////////////////////////
+				//////////////////// Draw inner labels /////////////////////
+				////////////////////////////////////////////////////////////
+						
+				var innerLabelGroup = g.append("g").attr("class","inner-label-wrapper");
+
+				//Place the inner text labels in the middle
+				var innerLabels = innerLabelGroup.selectAll("text")
+					.data(function(s) { return s.innergroups; })
+					.enter().append("text")
+					.attr("class", "inner-label")
+					.attr("x", function(d,i) { return d.x; })
+					.attr("y", function(d,i) { return d.y; })
+					.attr("dy", ".35em")
+					.text(function(d,i) { return d.name; })
+					.on("mouseover", function(d) {
+			
+						//Show all the strings of the highlighted trainer and hide all else
+						d3.selectAll(".string")
+							.transition()
+							.style("opacity", function(s) {
+							return s.outer.innername !== d.name ? fadeOpacity : 1;
+						});
+				
+						//Update the trainings count of the outer labels
+						var trainerData = loom(dataset).filter(function(s) { return s.outer.innername === d.name; });
+						d3.selectAll(".outer-label-value")
+							.text(function(s,i){
+								//Find which trainerData is the correct one based on training
+								var loc = trainerData.filter(function(c) { return c.outer.outername === s.outername; });
+								if(loc.length === 0) {
+									var value = 0;
+								} else {
+									var value = loc[0].outer.value;
+								}
+								return numFormat(value) + (value === 1 ? " trenni" : " trenni"); 
+					
+							});
+			
+						//Hide the arc where the trainer hasn't given a training
+						d3.selectAll(".arc-wrapper")
+							.transition()
+							.style("opacity", function(s) {
+								//Find which trainerData is the correct one based on training
+								var loc = trainerData.filter(function(c) { return c.outer.outername === s.outername; });
+								return loc.length === 0 ? 0.1 : 1;
+							});
+					
+						//Update the title to show the total training count of the trainer
+						d3.selectAll(".texts")
+							.transition()
+							.style("opacity", 1);
+						//d3.selectAll(".training-note")
+						//	.transition()
+						//	.style("opacity", 0);							
+						d3.select(".name-title")
+							.text(d.name);
+						d3.select(".value-title")
+							.text(function() {
+								var words = dataChar.filter(function(s) { return s.key === d.name; });
+								return numFormat(words[0].value) + " trenni";
+						});
+				
+				
+					})
+					.on("mouseout", function(d) {
+			
+						//Put the string opacity back to normal
+						d3.selectAll(".string")
+							.transition()
+							.style("opacity", defaultOpacity);
+				
+						//Return the training count to what it was
+						d3.selectAll(".outer-label-value")	
+							.text(function(s,i){ return numFormat(s.value) + " trenni"; });
+				
+						//Show all arcs again
+						d3.selectAll(".arc-wrapper")
+							.transition()
+							.style("opacity", 1);
+			
+						//Hide the title
+						d3.selectAll(".texts")
+							.transition()
+							.style("opacity", 0);
+			
+					});
+		</script>
+	</body>
+</html>

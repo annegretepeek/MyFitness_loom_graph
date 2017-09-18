@@ -7,4 +7,5 @@ Doing the loom graph using D3.js.
 
 
 Inspiration and base code: 
-https://www.visualcinnamon.com/2017/08/d3-loom.html
+https://www.visualcinnamon.com/2017/08/d3-loom.html  
+https://github.com/nbremer/d3-loom
